@@ -1,9 +1,12 @@
 const express = require('express');
+const multer  = require('multer');
 const cors = require('cors');
 require('dotenv').config();
 
+const upload = multer({ dest: 'uploads/' })
 const router = express.Router();
 router.use(express.urlencoded({ extended: true }));
+router.use(express.json({limit: '50mb', extended: true}));
 router.use(cors());
 router.use(express.json());
 
@@ -33,9 +36,10 @@ router.get("/getCourse/:id", (request, response) => {
 });
 
 router.post("/insertCourse", (request, response) => {
-  const item = request.body;
+  let item = request.body;
   item.id = getCourseId();
-  collection.insertOne(item, (insertError, insertResult) => {
+  item.files = [];
+  collection.insertOne(item, (insertError, _) => {
     if (insertError) throw insertError;
     collection.find().toArray(function (error, result) {
       if (error) throw error;
@@ -46,7 +50,7 @@ router.post("/insertCourse", (request, response) => {
 
 router.put("/updateCourse/:id", (request, response) => {
   const item = request.body;
-  collection.updateOne({ id: request.params.id }, { $set: item }, (updateError, updateResult) => {
+  collection.updateOne({ id: request.params.id }, { $set: item }, (updateError, _) => {
     if (updateError) throw updateError;
     collection.findOne({ id: request.params.id }, (error, result) => {
       if (error) throw error;
@@ -54,6 +58,22 @@ router.put("/updateCourse/:id", (request, response) => {
     });
   });
 });
+
+// router.put("/updateCourse/:id", upload.array('files', 5), (request, response) => {
+//   const item = request.body;
+//   // const updatedCourse = {
+//   //   ...item,
+//   //   files: request.files,
+//   // }
+//   collection.updateOne({ id: request.params.id }, { $set: updatedCourse }, (updateError, updateResult) => {
+//     if (updateError) throw updateError;
+//     collection.findOne({ id: request.params.id }, (error, result) => {
+//       if (error) throw error;
+//       response.json(result);
+//     });
+//   });
+// });
+
 
 router.delete("/deleteCourse/:id", (request, response) => {
   collection.deleteOne({ id: request.params.id }, function (error, result) {
