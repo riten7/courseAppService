@@ -1,19 +1,30 @@
 const express = require('express');
 const multer  = require('multer');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
-const upload = multer({ dest: 'uploads/' })
 const router = express.Router();
 router.use(express.urlencoded({ extended: true }));
 router.use(express.json({limit: '50mb', extended: true}));
 router.use(cors());
 router.use(express.json());
+router.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 
 const database = require('./dbConnect');
 let collection = null;
 
-const getCourseId = () => (Math.random().toString(36).replace('0.', ''));
+const getRandomId = () => (Math.random().toString(36).replace('0.', ''));
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads');
+    },
+    filename: (req, file, cb) => {
+        cb(null, file.originalname);
+    }
+});
+const upload = multer({ storage: storage });
 
 database.initialize(function (dbCollection) {
   collection = dbCollection;
@@ -37,7 +48,7 @@ router.get("/getCourse/:id", (request, response) => {
 
 router.post("/insertCourse", (request, response) => {
   let item = request.body;
-  item.id = getCourseId();
+  item.id = getRandomId();
   item.files = [];
   collection.insertOne(item, (insertError, _) => {
     if (insertError) throw insertError;
@@ -59,20 +70,22 @@ router.put("/updateCourse/:id", (request, response) => {
   });
 });
 
-// router.put("/updateCourse/:id", upload.array('files', 5), (request, response) => {
-//   const item = request.body;
-//   // const updatedCourse = {
-//   //   ...item,
-//   //   files: request.files,
-//   // }
-//   collection.updateOne({ id: request.params.id }, { $set: updatedCourse }, (updateError, updateResult) => {
-//     if (updateError) throw updateError;
-//     collection.findOne({ id: request.params.id }, (error, result) => {
-//       if (error) throw error;
-//       response.json(result);
-//     });
-//   });
-// });
+router.put("/updateCourseFiles/:id", upload.array('file', 5), (request, response) => {
+  const item = request.body;
+  const fileList = concatFileList(JSON.parse(item.fileList), request);
+  const updatedCourse = {
+    ...item,
+    files: fileList,
+  }
+  delete updatedCourse.fileList;
+  collection.updateOne({ id: request.params.id }, { $set: updatedCourse }, (updateError, updateResult) => {
+    if (updateError) throw updateError;
+    collection.findOne({ id: request.params.id }, (error, result) => {
+      if (error) throw error;
+      response.json(result);
+    });
+  });
+});
 
 
 router.delete("/deleteCourse/:id", (request, response) => {
@@ -81,5 +94,24 @@ router.delete("/deleteCourse/:id", (request, response) => {
     response.json(result);
   });
 });
+
+router.delete("/deleteFile/:courseId/:fileId", (request, response) => {
+  collection.findOne({ id: request.params.courseId }, (error, result) => {
+      if (error) throw error;
+      const data = result.files.filter(item => item.id !== request.params.fileId);
+      response.json(data);
+    });
+});
+
+const concatFileList = (existingFiles, request) => {
+  const updtatedFiles = request.files.map(file => {
+    return {
+      ...file,
+      id: getRandomId(),
+      path: `${request.protocol}://${request.get("host")}/${file.path}`
+    }
+  });
+  return [...existingFiles, ...updtatedFiles];
+}
 
 module.exports = router;
