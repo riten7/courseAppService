@@ -18,7 +18,7 @@ const getRandomId = () => (Math.random().toString(36).replace('0.', ''));
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads');
+        cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
         cb(null, file.originalname);
